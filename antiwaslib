@@ -1,568 +1,165 @@
--- SimpleIMGUI (tabs-enabled, fixed ordering)
+-- antiwaslib.lua
+-- simple IMGUI-style library (no tabs)
+
 local SimpleIMGUI = {}
+SimpleIMGUI.__index = SimpleIMGUI
 
-function SimpleIMGUI:Begin(props)
-    props = props or {}
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
+-- create a new window
+function SimpleIMGUI:Begin(cfg)
+    local window = setmetatable({}, SimpleIMGUI)
 
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "SimpleIMGUI_" .. tostring(math.random(1, 10000))
-    gui.Parent = game:GetService("CoreGui") or (LocalPlayer and LocalPlayer:WaitForChild("PlayerGui"))
-    gui.ResetOnSpawn = false
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
 
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainWindow"
-    local W, H = props.Width or 500, props.Height or 400
-    mainFrame.Size = UDim2.new(0, W, 0, H)
-    mainFrame.Position = UDim2.new(0.5, -W / 2, 0.5, -H / 2)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = gui
+    -- ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = cfg.Name or "SimpleIMGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
 
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
-    titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    titleBar.Parent = mainFrame
+    -- Main frame
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, cfg.Width or 400, 0, cfg.Height or 300)
+    frame.Position = UDim2.new(0.5, -(cfg.Width or 400)/2, 0.5, -(cfg.Height or 300)/2)
+    frame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
 
-    local titleText = Instance.new("TextLabel")
-    titleText.Name = "Title"
-    titleText.Size = UDim2.new(1, -40, 1, 0)
-    titleText.Position = UDim2.new(0, 10, 0, 0)
-    titleText.Text = props.Name or "Simple IMGUI"
-    titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleText.BackgroundTransparency = 1
-    titleText.Font = Enum.Font.Gotham
-    titleText.TextSize = 14
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
+    -- UIListLayout for stacking elements
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 6)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = frame
 
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 30, 1, 0)
-    closeButton.Position = UDim2.new(1, -30, 0, 0)
-    closeButton.Text = "X"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    closeButton.BorderSizePixel = 0
-    closeButton.Parent = titleBar
+    window._frame = frame
+    window._screenGui = screenGui
 
-    local contentFrame = Instance.new("ScrollingFrame")
-    contentFrame.Name = "Content"
-    contentFrame.Size = UDim2.new(1, -10, 1, -40)
-    contentFrame.Position = UDim2.new(0, 5, 0, 35)
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.ScrollBarThickness = 8
-    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    contentFrame.Parent = mainFrame
+    return window
+end
 
-    local mainLayout = Instance.new("UIListLayout")
-    mainLayout.Padding = UDim.new(0, 5)
-    mainLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    mainLayout.Parent = contentFrame
+-- add text label
+function SimpleIMGUI:Text(str)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 24)
+    label.BackgroundTransparency = 1
+    label.Text = str
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = self._frame
+    return label
+end
 
-    mainLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        contentFrame.CanvasSize = UDim2.new(0, 0, 0, mainLayout.AbsoluteContentSize.Y + 10)
+-- add separator (line)
+function SimpleIMGUI:Seperator()
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, -10, 0, 1)
+    line.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    line.BorderSizePixel = 0
+    line.Parent = self._frame
+    return line
+end
+
+-- add button
+function SimpleIMGUI:Button(name)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 28)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    btn.Text = name
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.Parent = self._frame
+
+    local signal = Instance.new("BindableEvent")
+    btn.MouseButton1Click:Connect(function()
+        signal:Fire()
     end)
 
-    -- ordering helper (keeps LayoutOrder per parent container)
-    local elementIndices = {}
-    local currentContent = contentFrame
+    return signal.Event
+end
 
-    local function getIndexFor(parent)
-        elementIndices[parent] = (elementIndices[parent] or 0) + 1
-        return elementIndices[parent]
-    end
+-- add checkbox
+function SimpleIMGUI:CheckBox(cfg)
+    local box = Instance.new("TextButton")
+    box.Size = UDim2.new(1, -10, 0, 28)
+    box.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    box.Text = (cfg.Enabled and "[X] " or "[ ] ") .. cfg.Name
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 14
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.Parent = self._frame
 
-    local function push(child, parentOverride)
-        local parent = parentOverride or currentContent or contentFrame
-        local idx = getIndexFor(parent)
-        child.LayoutOrder = idx
-        child.Parent = parent
-        return child
-    end
+    local state = cfg.Enabled or false
 
-    -- Dragging functionality
+    box.MouseButton1Click:Connect(function()
+        state = not state
+        box.Text = (state and "[X] " or "[ ] ") .. cfg.Name
+        if cfg.OnChanged then
+            cfg.OnChanged(state)
+        end
+    end)
+
+    return box
+end
+
+-- add integer slider
+function SimpleIMGUI:SliderInteger(cfg)
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1, -10, 0, 40)
+    holder.BackgroundTransparency = 1
+    holder.Parent = self._frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 16)
+    label.BackgroundTransparency = 1
+    label.Text = cfg.Name .. ": " .. cfg.Default
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local slider = Instance.new("TextButton")
+    slider.Size = UDim2.new(1, 0, 0, 20)
+    slider.Position = UDim2.new(0, 0, 0, 18)
+    slider.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+    slider.Text = ""
+    slider.Parent = holder
+
+    local val = cfg.Default or cfg.Min
+    label.Text = cfg.Name .. ": " .. val
+
+    local uis = game:GetService("UserInputService")
     local dragging = false
-    local dragStart, startPos
-    titleBar.InputBegan:Connect(function(input)
+
+    slider.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+    uis.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+            dragging = false
+        end
+    end)
+    uis.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local rel = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+            val = math.floor(cfg.Min + (cfg.Max - cfg.Min) * rel)
+            label.Text = cfg.Name .. ": " .. val
+            if cfg.OnChanged then
+                cfg.OnChanged(val)
+            end
         end
     end)
 
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-            local delta = input.Position - dragStart
-            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
+    return slider
+end
 
-    closeButton.MouseButton1Click:Connect(function()
-        gui:Destroy()
-    end)
-
-    -- Element handler (API returned to user)
-    local ElementHandler = {}
-
-    function ElementHandler:SliderFloat(props)
-        props = props or {}
-        local sliderFrame = Instance.new("Frame")
-        sliderFrame.Name = "Slider"
-        sliderFrame.Size = UDim2.new(1, 0, 0, 40)
-        sliderFrame.BackgroundTransparency = 1
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Name = "Name"
-        nameLabel.Size = UDim2.new(1, 0, 0, 20)
-        nameLabel.Text = props.Name or "Slider"
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.TextSize = 14
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Parent = sliderFrame
-
-        local track = Instance.new("Frame")
-        track.Name = "Track"
-        track.Size = UDim2.new(1, 0, 0, 5)
-        track.Position = UDim2.new(0, 0, 0, 25)
-        track.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        track.BorderSizePixel = 0
-        track.Parent = sliderFrame
-
-        local fill = Instance.new("Frame")
-        fill.Name = "Fill"
-        fill.Size = UDim2.new(0, 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-        fill.BorderSizePixel = 0
-        fill.Parent = track
-
-        local handle = Instance.new("Frame")
-        handle.Name = "Handle"
-        handle.Size = UDim2.new(0, 10, 0, 15)
-        handle.Position = UDim2.new(0, 0, 0, -5)
-        handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        handle.BorderSizePixel = 0
-        handle.Parent = track
-
-        local valueText = Instance.new("TextLabel")
-        valueText.Name = "Value"
-        valueText.Size = UDim2.new(0, 50, 0, 20)
-        valueText.Position = UDim2.new(1, -50, 0, 0)
-        valueText.Text = tostring(props.Default or 0)
-        valueText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        valueText.BackgroundTransparency = 1
-        valueText.Font = Enum.Font.Gotham
-        valueText.TextSize = 14
-        valueText.TextXAlignment = Enum.TextXAlignment.Right
-        valueText.Parent = sliderFrame
-
-        local min = props.Min or 0
-        local max = props.Max or 100
-        local currentValue = props.Default or min
-
-        local function updateSlider(value)
-            currentValue = math.clamp(value, min, max)
-            local ratio = (currentValue - min) / (max - min)
-            fill.Size = UDim2.new(ratio, 0, 1, 0)
-            handle.Position = UDim2.new(ratio, -5, 0, -5)
-            valueText.Text = string.format("%.2f", currentValue)
-            if props.OnChanged then
-                pcall(props.OnChanged, currentValue)
-            end
-        end
-
-        local draggingSlider = false
-        track.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                draggingSlider = true
-                local x = input.Position.X - track.AbsolutePosition.X
-                local ratio = math.clamp(x / track.AbsoluteSize.X, 0, 1)
-                updateSlider(min + ratio * (max - min))
-            end
-        end)
-
-        track.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                draggingSlider = false
-            end
-        end)
-
-        game:GetService("UserInputService").InputChanged:Connect(function(input)
-            if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local x = input.Position.X - track.AbsolutePosition.X
-                local ratio = math.clamp(x / track.AbsoluteSize.X, 0, 1)
-                updateSlider(min + ratio * (max - min))
-            end
-        end)
-
-        updateSlider(currentValue)
-        push(sliderFrame)
-    end
-
-    function ElementHandler:SliderInteger(props)
-        props = props or {}
-        local sliderFrame = Instance.new("Frame")
-        sliderFrame.Name = "Slider"
-        sliderFrame.Size = UDim2.new(1, 0, 0, 40)
-        sliderFrame.BackgroundTransparency = 1
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Name = "Name"
-        nameLabel.Size = UDim2.new(1, 0, 0, 20)
-        nameLabel.Text = props.Name or "Slider"
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.TextSize = 14
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Parent = sliderFrame
-
-        local track = Instance.new("Frame")
-        track.Name = "Track"
-        track.Size = UDim2.new(1, 0, 0, 5)
-        track.Position = UDim2.new(0, 0, 0, 25)
-        track.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        track.BorderSizePixel = 0
-        track.Parent = sliderFrame
-
-        local fill = Instance.new("Frame")
-        fill.Name = "Fill"
-        fill.Size = UDim2.new(0, 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-        fill.BorderSizePixel = 0
-        fill.Parent = track
-
-        local handle = Instance.new("Frame")
-        handle.Name = "Handle"
-        handle.Size = UDim2.new(0, 10, 0, 15)
-        handle.Position = UDim2.new(0, 0, 0, -5)
-        handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        handle.BorderSizePixel = 0
-        handle.Parent = track
-
-        local valueText = Instance.new("TextLabel")
-        valueText.Name = "Value"
-        valueText.Size = UDim2.new(0, 50, 0, 20)
-        valueText.Position = UDim2.new(1, -50, 0, 0)
-        valueText.Text = tostring(props.Default or 0)
-        valueText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        valueText.BackgroundTransparency = 1
-        valueText.Font = Enum.Font.Gotham
-        valueText.TextSize = 14
-        valueText.TextXAlignment = Enum.TextXAlignment.Right
-        valueText.Parent = sliderFrame
-
-        local min = props.Min or 0
-        local max = props.Max or 100
-        local currentValue = props.Default or min
-
-        local function updateSlider(value)
-            currentValue = math.floor(math.clamp(value, min, max))
-            local ratio = (currentValue - min) / (max - min)
-            fill.Size = UDim2.new(ratio, 0, 1, 0)
-            handle.Position = UDim2.new(ratio, -5, 0, -5)
-            valueText.Text = tostring(currentValue)
-            if props.OnChanged then
-                pcall(props.OnChanged, currentValue)
-            end
-        end
-
-        local draggingSlider = false
-        track.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                draggingSlider = true
-                local x = input.Position.X - track.AbsolutePosition.X
-                local ratio = math.clamp(x / track.AbsoluteSize.X, 0, 1)
-                updateSlider(min + ratio * (max - min))
-            end
-        end)
-
-        track.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                draggingSlider = false
-            end
-        end)
-
-        game:GetService("UserInputService").InputChanged:Connect(function(input)
-            if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local x = input.Position.X - track.AbsolutePosition.X
-                local ratio = math.clamp(x / track.AbsoluteSize.X, 0, 1)
-                updateSlider(min + ratio * (max - min))
-            end
-        end)
-
-        updateSlider(currentValue)
-        push(sliderFrame)
-    end
-
-    function ElementHandler:CheckBox(props)
-        props = props or {}
-        local checkBoxFrame = Instance.new("Frame")
-        checkBoxFrame.Name = "CheckBox"
-        checkBoxFrame.Size = UDim2.new(1, 0, 0, 30)
-        checkBoxFrame.BackgroundTransparency = 1
-
-        local clickRegion = Instance.new("TextButton")
-        clickRegion.Name = "ClickRegion"
-        clickRegion.Size = UDim2.new(1, 0, 1, 0)
-        clickRegion.BackgroundTransparency = 1
-        clickRegion.Text = ""
-        clickRegion.AutoButtonColor = false
-        clickRegion.BorderSizePixel = 0
-        clickRegion.Parent = checkBoxFrame
-
-        local box = Instance.new("Frame")
-        box.Name = "Box"
-        box.Size = UDim2.new(0, 20, 0, 20)
-        box.Position = UDim2.new(0, 0, 0.5, -10)
-        box.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        box.BorderSizePixel = 0
-        box.Parent = checkBoxFrame
-
-        local check = Instance.new("Frame")
-        check.Name = "Check"
-        check.Size = UDim2.new(0, 14, 0, 14)
-        check.Position = UDim2.new(0.5, -7, 0.5, -7)
-        check.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-        check.BorderSizePixel = 0
-        check.Visible = props.Enabled or false
-        check.Parent = box
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Name = "Name"
-        nameLabel.Size = UDim2.new(1, -30, 1, 0)
-        nameLabel.Position = UDim2.new(0, 30, 0, 0)
-        nameLabel.Text = props.Name or "CheckBox"
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Font = Enum.Font.Gotham
-        nameLabel.TextSize = 14
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Parent = checkBoxFrame
-
-        local enabled = props.Enabled or false
-        local function toggle()
-            enabled = not enabled
-            check.Visible = enabled
-            if props.OnChanged then
-                pcall(props.OnChanged, enabled)
-            end
-        end
-
-        clickRegion.MouseButton1Click:Connect(toggle)
-        push(checkBoxFrame)
-    end
-
-    function ElementHandler:Button(text)
-        local button = Instance.new("TextButton")
-        button.Name = "Button"
-        button.Size = UDim2.new(1, 0, 0, 30)
-        button.Text = text or "Button"
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-        button.BorderSizePixel = 0
-        button.Font = Enum.Font.Gotham
-        button.TextSize = 14
-
-        local buttonHandler = {}
-        function buttonHandler:Connect(callback)
-            button.MouseButton1Click:Connect(callback)
-        end
-
-        push(button)
-        return buttonHandler
-    end
-
-    function ElementHandler:Seperator()
-        local sepFrame = Instance.new("Frame")
-        sepFrame.Name = "Seperator"
-        sepFrame.Size = UDim2.new(1, 0, 0, 10)
-        sepFrame.BackgroundTransparency = 1
-
-        local line = Instance.new("Frame")
-        line.Size = UDim2.new(1, 0, 0, 1)
-        line.Position = UDim2.new(0, 0, 0.5, 0)
-        line.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
-        line.BorderSizePixel = 0
-        line.Parent = sepFrame
-
-        push(sepFrame)
-    end
-
-    function ElementHandler:Text(text)
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Name = "Text"
-        textLabel.Size = UDim2.new(1, 0, 0, 20)
-        textLabel.Text = text or "Text"
-        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textLabel.BackgroundTransparency = 1
-        textLabel.Font = Enum.Font.Gotham
-        textLabel.TextSize = 14
-        textLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-        push(textLabel)
-    end
-
-    -- Tabs: tabNames = { "One", "Two", ... }
-    function ElementHandler:Tabs(tabNames)
-        tabNames = tabNames or {}
-        -- holder is one element in the main content list
-        local tabsHolder = Instance.new("Frame")
-        tabsHolder.Name = "TabsHolder"
-        tabsHolder.BackgroundTransparency = 1
-        tabsHolder.Size = UDim2.new(1, 0, 0, 30) -- header only until content added
-
-        -- header (buttons)
-        local header = Instance.new("Frame")
-        header.Name = "TabsHeader"
-        header.Size = UDim2.new(1, 0, 0, 30)
-        header.BackgroundTransparency = 1
-        header.Parent = tabsHolder
-
-        local headerLayout = Instance.new("UIListLayout")
-        headerLayout.FillDirection = Enum.FillDirection.Horizontal
-        headerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        headerLayout.Padding = UDim.new(0, 6)
-        headerLayout.Parent = header
-
-        -- content container inside holder (we control its height)
-        local contentContainer = Instance.new("Frame")
-        contentContainer.Name = "TabsContentContainer"
-        contentContainer.Size = UDim2.new(1, 0, 0, 0)
-        contentContainer.Position = UDim2.new(0, 0, 0, 30)
-        contentContainer.BackgroundTransparency = 1
-        contentContainer.Parent = tabsHolder
-
-        local tabButtons = {}
-        local tabContents = {}
-        local activeTab = nil
-
-        local function recomputeHolderSize()
-            local maxContent = 0
-            for _, tabFrame in pairs(tabContents) do
-                local layout = tabFrame.__layout
-                if layout then
-                    local y = layout.AbsoluteContentSize.Y
-                    if y > maxContent then maxContent = y end
-                end
-            end
-            contentContainer.Size = UDim2.new(1, 0, 0, maxContent)
-            tabsHolder.Size = UDim2.new(1, 0, 0, 30 + maxContent)
-        end
-
-        local function createTab(name, i)
-            local btn = Instance.new("TextButton")
-            btn.Name = "TabBtn_" .. name
-            btn.Size = UDim2.new(0, 100, 1, 0)
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-            btn.Text = name
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 14
-            btn.TextColor3 = Color3.new(1, 1, 1)
-            btn.Parent = header
-
-            local tabFrame = Instance.new("Frame")
-            tabFrame.Name = "TabContent_" .. name
-            tabFrame.Size = UDim2.new(1, 0, 0, 0)
-            tabFrame.Position = UDim2.new(0, 0, 0, 30)
-            tabFrame.BackgroundTransparency = 1
-            tabFrame.Visible = false
-            tabFrame.Parent = contentContainer
-
-            local layout = Instance.new("UIListLayout")
-            layout.SortOrder = Enum.SortOrder.LayoutOrder
-            layout.Padding = UDim.new(0, 5)
-            layout.Parent = tabFrame
-
-            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                tabFrame.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y)
-                recomputeHolderSize()
-            end)
-
-            btn.MouseButton1Click:Connect(function()
-                for n, tf in pairs(tabContents) do
-                    tf.Visible = (n == name)
-                end
-                for n, b in pairs(tabButtons) do
-                    b.BackgroundColor3 = (n == name) and Color3.fromRGB(70, 70, 90) or Color3.fromRGB(50, 50, 60)
-                end
-                activeTab = name
-            end)
-
-            tabButtons[name] = btn
-            tabContents[name] = tabFrame
-            tabFrame.__layout = layout
-        end
-
-        for i, name in ipairs(tabNames) do
-            createTab(name, i)
-        end
-
-        -- default first tab active
-        if tabNames[1] then
-            local first = tabNames[1]
-            local btn = tabButtons[first]
-            local tf = tabContents[first]
-            if btn and tf then
-                tf.Visible = true
-                btn.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
-                activeTab = first
-            end
-        end
-
-        push(tabsHolder)
-
-        -- API returned to user
-        local tabsAPI = {}
-
-        function tabsAPI:AddToTab(tabName, elementFunc)
-            local target = tabContents[tabName]
-            if not target then
-                warn("Tabs:AddToTab - tab not found:", tabName)
-                return
-            end
-            local prev = currentContent
-            currentContent = target
-            elementIndices[target] = elementIndices[target] or 0
-            local ok, err = pcall(elementFunc)
-            if not ok then warn("Error in AddToTab:", err) end
-            currentContent = prev
-            -- call recompute to ensure sizes update after adding elements
-            recomputeHolderSize()
-        end
-
-        function tabsAPI:SetActive(tabName)
-            if tabContents[tabName] then
-                tabButtons[tabName].MouseButton1Click:Connect(function() end) -- noop to ensure existence
-                -- manual activate:
-                for n, tf in pairs(tabContents) do
-                    tf.Visible = (n == tabName)
-                end
-                for n, b in pairs(tabButtons) do
-                    b.BackgroundColor3 = (n == tabName) and Color3.fromRGB(70, 70, 90) or Color3.fromRGB(50, 50, 60)
-                end
-                activeTab = tabName
-            end
-        end
-
-        return tabsAPI
-    end
-
-    function ElementHandler:End()
-        -- nothing needed; layout connections already running
-    end
-
-    return ElementHandler
+-- finish window
+function SimpleIMGUI:End()
+    -- nothing special for now
 end
 
 return SimpleIMGUI
