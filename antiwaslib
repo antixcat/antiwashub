@@ -1,4 +1,4 @@
--- SimpleIMGUI (fixed layout / separators)
+-- SimpleIMGUI (tabs-enabled, fixed ordering)
 local SimpleIMGUI = {}
 
 function SimpleIMGUI:Begin(props)
@@ -7,14 +7,15 @@ function SimpleIMGUI:Begin(props)
     local LocalPlayer = Players.LocalPlayer
 
     local gui = Instance.new("ScreenGui")
-    gui.Name = "SimpleIMGUI_"..tostring(math.random(1,10000))
+    gui.Name = "SimpleIMGUI_" .. tostring(math.random(1, 10000))
     gui.Parent = game:GetService("CoreGui") or (LocalPlayer and LocalPlayer:WaitForChild("PlayerGui"))
+    gui.ResetOnSpawn = false
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainWindow"
     local W, H = props.Width or 500, props.Height or 400
     mainFrame.Size = UDim2.new(0, W, 0, H)
-    mainFrame.Position = UDim2.new(0.5, -W/2, 0.5, -H/2)
+    mainFrame.Position = UDim2.new(0.5, -W / 2, 0.5, -H / 2)
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = gui
@@ -56,22 +57,30 @@ function SimpleIMGUI:Begin(props)
     contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     contentFrame.Parent = mainFrame
 
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 5)
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Parent = contentFrame
+    local mainLayout = Instance.new("UIListLayout")
+    mainLayout.Padding = UDim.new(0, 5)
+    mainLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    mainLayout.Parent = contentFrame
 
-    -- Make canvas size follow the content immediately
-    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        contentFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    mainLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        contentFrame.CanvasSize = UDim2.new(0, 0, 0, mainLayout.AbsoluteContentSize.Y + 10)
     end)
 
-    -- small helper to enforce ordering (fixes separators showing in wrong spot)
-    local elementIndex = 0
-    local function push(child)
-        elementIndex = elementIndex + 1
-        child.LayoutOrder = elementIndex
-        child.Parent = contentFrame
+    -- ordering helper (keeps LayoutOrder per parent container)
+    local elementIndices = {}
+    local currentContent = contentFrame
+
+    local function getIndexFor(parent)
+        elementIndices[parent] = (elementIndices[parent] or 0) + 1
+        return elementIndices[parent]
+    end
+
+    local function push(child, parentOverride)
+        local parent = parentOverride or currentContent or contentFrame
+        local idx = getIndexFor(parent)
+        child.LayoutOrder = idx
+        child.Parent = parent
+        return child
     end
 
     -- Dragging functionality
@@ -101,7 +110,7 @@ function SimpleIMGUI:Begin(props)
         gui:Destroy()
     end)
 
-    -- Element handler
+    -- Element handler (API returned to user)
     local ElementHandler = {}
 
     function ElementHandler:SliderFloat(props)
@@ -167,7 +176,6 @@ function SimpleIMGUI:Begin(props)
             fill.Size = UDim2.new(ratio, 0, 1, 0)
             handle.Position = UDim2.new(ratio, -5, 0, -5)
             valueText.Text = string.format("%.2f", currentValue)
-
             if props.OnChanged then
                 pcall(props.OnChanged, currentValue)
             end
@@ -198,7 +206,6 @@ function SimpleIMGUI:Begin(props)
         end)
 
         updateSlider(currentValue)
-        sliderFrame.Parent = nil
         push(sliderFrame)
     end
 
@@ -265,7 +272,6 @@ function SimpleIMGUI:Begin(props)
             fill.Size = UDim2.new(ratio, 0, 1, 0)
             handle.Position = UDim2.new(ratio, -5, 0, -5)
             valueText.Text = tostring(currentValue)
-
             if props.OnChanged then
                 pcall(props.OnChanged, currentValue)
             end
@@ -296,90 +302,8 @@ function SimpleIMGUI:Begin(props)
         end)
 
         updateSlider(currentValue)
-        sliderFrame.Parent = nil
         push(sliderFrame)
     end
-
-    function ElementHandler:Tabs(tabNames)
-    local tabsFrame = Instance.new("Frame")
-    tabsFrame.Name = "Tabs"
-    tabsFrame.Size = UDim2.new(1, 0, 0, 30)
-    tabsFrame.BackgroundTransparency = 1
-    tabsFrame.Parent = contentFrame
-
-    local tabButtons = {}
-    local tabContents = {}
-    local activeTab = nil
-
-    -- Layout for tab buttons
-    local layout = Instance.new("UIListLayout")
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Parent = tabsFrame
-
-    -- Content container (below tab buttons)
-    local container = Instance.new("Frame")
-    container.Name = "TabContainer"
-    container.Size = UDim2.new(1, 0, 1, -30)
-    container.Position = UDim2.new(0, 0, 0, 30)
-    container.BackgroundTransparency = 1
-    container.Parent = contentFrame
-
-    -- Make a tab button + content for each
-    for i, tabName in ipairs(tabNames) do
-        local btn = Instance.new("TextButton")
-        btn.Name = "TabButton_" .. tabName
-        btn.Size = UDim2.new(0, 100, 1, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-        btn.Text = tabName
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 14
-        btn.TextColor3 = Color3.new(1, 1, 1)
-        btn.Parent = tabsFrame
-
-        local content = Instance.new("Frame")
-        content.Name = "TabContent_" .. tabName
-        content.Size = UDim2.new(1, 0, 1, 0)
-        content.BackgroundTransparency = 1
-        content.Visible = false
-        content.Parent = container
-
-        tabButtons[tabName] = btn
-        tabContents[tabName] = content
-
-        btn.MouseButton1Click:Connect(function()
-            -- Hide all tabs
-            for _, c in pairs(tabContents) do
-                c.Visible = false
-            end
-            -- Show this one
-            content.Visible = true
-            activeTab = tabName
-        end)
-
-        -- Make the first tab default active
-        if i == 1 then
-            content.Visible = true
-            activeTab = tabName
-        end
-    end
-
-    -- API: let user add stuff to a tab
-    return {
-        AddToTab = function(self, tabName, elementFunc)
-            if tabContents[tabName] then
-                local oldContentFrame = contentFrame
-                contentFrame = tabContents[tabName] -- redirect
-                elementFunc()
-                contentFrame = oldContentFrame
-            else
-                warn("Tab '" .. tabName .. "' not found!")
-            end
-        end
-    }
-end
-
-
 
     function ElementHandler:CheckBox(props)
         props = props or {}
@@ -388,7 +312,6 @@ end
         checkBoxFrame.Size = UDim2.new(1, 0, 0, 30)
         checkBoxFrame.BackgroundTransparency = 1
 
-        -- clickable full-row region
         local clickRegion = Instance.new("TextButton")
         clickRegion.Name = "ClickRegion"
         clickRegion.Size = UDim2.new(1, 0, 1, 0)
@@ -437,7 +360,6 @@ end
         end
 
         clickRegion.MouseButton1Click:Connect(toggle)
-
         push(checkBoxFrame)
     end
 
@@ -464,7 +386,7 @@ end
     function ElementHandler:Seperator()
         local sepFrame = Instance.new("Frame")
         sepFrame.Name = "Seperator"
-        sepFrame.Size = UDim2.new(1, 0, 0, 10) -- spacing + line
+        sepFrame.Size = UDim2.new(1, 0, 0, 10)
         sepFrame.BackgroundTransparency = 1
 
         local line = Instance.new("Frame")
@@ -491,8 +413,153 @@ end
         push(textLabel)
     end
 
+    -- Tabs: tabNames = { "One", "Two", ... }
+    function ElementHandler:Tabs(tabNames)
+        tabNames = tabNames or {}
+        -- holder is one element in the main content list
+        local tabsHolder = Instance.new("Frame")
+        tabsHolder.Name = "TabsHolder"
+        tabsHolder.BackgroundTransparency = 1
+        tabsHolder.Size = UDim2.new(1, 0, 0, 30) -- header only until content added
+
+        -- header (buttons)
+        local header = Instance.new("Frame")
+        header.Name = "TabsHeader"
+        header.Size = UDim2.new(1, 0, 0, 30)
+        header.BackgroundTransparency = 1
+        header.Parent = tabsHolder
+
+        local headerLayout = Instance.new("UIListLayout")
+        headerLayout.FillDirection = Enum.FillDirection.Horizontal
+        headerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        headerLayout.Padding = UDim.new(0, 6)
+        headerLayout.Parent = header
+
+        -- content container inside holder (we control its height)
+        local contentContainer = Instance.new("Frame")
+        contentContainer.Name = "TabsContentContainer"
+        contentContainer.Size = UDim2.new(1, 0, 0, 0)
+        contentContainer.Position = UDim2.new(0, 0, 0, 30)
+        contentContainer.BackgroundTransparency = 1
+        contentContainer.Parent = tabsHolder
+
+        local tabButtons = {}
+        local tabContents = {}
+        local activeTab = nil
+
+        local function recomputeHolderSize()
+            local maxContent = 0
+            for _, tabFrame in pairs(tabContents) do
+                local layout = tabFrame.__layout
+                if layout then
+                    local y = layout.AbsoluteContentSize.Y
+                    if y > maxContent then maxContent = y end
+                end
+            end
+            contentContainer.Size = UDim2.new(1, 0, 0, maxContent)
+            tabsHolder.Size = UDim2.new(1, 0, 0, 30 + maxContent)
+        end
+
+        local function createTab(name, i)
+            local btn = Instance.new("TextButton")
+            btn.Name = "TabBtn_" .. name
+            btn.Size = UDim2.new(0, 100, 1, 0)
+            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+            btn.Text = name
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 14
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.Parent = header
+
+            local tabFrame = Instance.new("Frame")
+            tabFrame.Name = "TabContent_" .. name
+            tabFrame.Size = UDim2.new(1, 0, 0, 0)
+            tabFrame.Position = UDim2.new(0, 0, 0, 30)
+            tabFrame.BackgroundTransparency = 1
+            tabFrame.Visible = false
+            tabFrame.Parent = contentContainer
+
+            local layout = Instance.new("UIListLayout")
+            layout.SortOrder = Enum.SortOrder.LayoutOrder
+            layout.Padding = UDim.new(0, 5)
+            layout.Parent = tabFrame
+
+            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                tabFrame.Size = UDim2.new(1, 0, 0, layout.AbsoluteContentSize.Y)
+                recomputeHolderSize()
+            end)
+
+            btn.MouseButton1Click:Connect(function()
+                for n, tf in pairs(tabContents) do
+                    tf.Visible = (n == name)
+                end
+                for n, b in pairs(tabButtons) do
+                    b.BackgroundColor3 = (n == name) and Color3.fromRGB(70, 70, 90) or Color3.fromRGB(50, 50, 60)
+                end
+                activeTab = name
+            end)
+
+            tabButtons[name] = btn
+            tabContents[name] = tabFrame
+            tabFrame.__layout = layout
+        end
+
+        for i, name in ipairs(tabNames) do
+            createTab(name, i)
+        end
+
+        -- default first tab active
+        if tabNames[1] then
+            local first = tabNames[1]
+            local btn = tabButtons[first]
+            local tf = tabContents[first]
+            if btn and tf then
+                tf.Visible = true
+                btn.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+                activeTab = first
+            end
+        end
+
+        push(tabsHolder)
+
+        -- API returned to user
+        local tabsAPI = {}
+
+        function tabsAPI:AddToTab(tabName, elementFunc)
+            local target = tabContents[tabName]
+            if not target then
+                warn("Tabs:AddToTab - tab not found:", tabName)
+                return
+            end
+            local prev = currentContent
+            currentContent = target
+            elementIndices[target] = elementIndices[target] or 0
+            local ok, err = pcall(elementFunc)
+            if not ok then warn("Error in AddToTab:", err) end
+            currentContent = prev
+            -- call recompute to ensure sizes update after adding elements
+            recomputeHolderSize()
+        end
+
+        function tabsAPI:SetActive(tabName)
+            if tabContents[tabName] then
+                tabButtons[tabName].MouseButton1Click:Connect(function() end) -- noop to ensure existence
+                -- manual activate:
+                for n, tf in pairs(tabContents) do
+                    tf.Visible = (n == tabName)
+                end
+                for n, b in pairs(tabButtons) do
+                    b.BackgroundColor3 = (n == tabName) and Color3.fromRGB(70, 70, 90) or Color3.fromRGB(50, 50, 60)
+                end
+                activeTab = tabName
+            end
+        end
+
+        return tabsAPI
+    end
+
     function ElementHandler:End()
-        -- nothing extra needed now; the layout -> CanvasSize connection is already active
+        -- nothing needed; layout connections already running
     end
 
     return ElementHandler
